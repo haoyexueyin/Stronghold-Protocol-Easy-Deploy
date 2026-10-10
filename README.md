@@ -2,6 +2,21 @@
 
 《明日方舟》季节性自走棋塔防玩法「卫戍协议：盟约」的**非官方同人复刻**：浏览器即开即玩，单人或 1–4 人联机合作。
 
+## 方便部署版（基于原作者 v0.2.3）
+
+本项目基于原作者 [sganggs/Stronghold-Protocol](https://github.com/sganggs/Stronghold-Protocol) 的 [v0.2.3](https://github.com/sganggs/Stronghold-Protocol/releases/tag/v0.2.3)。游戏介绍、玩法、界面、战斗模拟、数据及下方原版文档沿用原作者和贡献者的实现；本仓库由 [haoyexueyin](https://github.com/haoyexueyin) 维护部署便利性改动，并非原作者的官方发布。原作者署名、GPL-3.0-or-later 许可证、第三方署名及素材版权声明继续保留。
+
+**Windows 快速开始：**
+
+1. 安装 Node.js 22 或更新版本（已有符合版本要求的 Node.js 可直接使用）。
+2. 在 [Releases](https://github.com/haoyexueyin/Stronghold-Protocol-Easy-Deploy/releases/latest) 下载完整包并解压。完整包包含游戏运行依赖、前端库及原作者 v0.2.3 完整包的素材。
+3. 双击根目录 **`启动樱花联机.bat`**，在本机隐藏输入樱花「访问密钥」：自动准备 HTTPS、启动游戏、下载官方 frpc，复用兼容的离线隧道或自动选择可用免费节点创建 TCP 隧道，连接成功后输出公网 HTTPS 地址及可解析的公网 IPv4 地址。
+4. 只想本机或局域网游玩时，双击 **`启动HTTPS游戏.bat`**。
+
+访问密钥不写入命令行、配置文件或日志，不传给游戏服务器。自签名证书会触发浏览器提示；账户流量、隧道额度与节点限制仍由樱花决定。旧窗口已运行时，更新前先按 Ctrl+C 停止服务。覆盖更新请用同版本原版 v0.2.3 的补丁；从旧版升级建议将完整包解压到新目录。
+
+本版新增：原生 HTTPS / WSS 支持、Windows 证书生成和续签、樱花免费节点自动选择与隧道创建/复用、官方 frpc 下载及密钥脱敏、根目录 BAT 入口。详细文件清单见 [修改记录](docs/HTTPS-CHANGES.md)，使用说明见 [部署指南](docs/DEPLOY.md#一键樱花联机windows)。精简包不含游戏美术音频，首次启动会按原版机制下载素材。
+
 ![version](https://img.shields.io/badge/version-0.2.3-2ea44f)
 ![license](https://img.shields.io/badge/code%20license-GPL--3.0--or--later-blue)
 ![node](https://img.shields.io/badge/node-22%20%7C%2024-339933)
@@ -83,7 +98,7 @@ English summary: [below](#english).
 ### 方式二：从源码运行
 
 ```bash
-git clone https://github.com/sganggs/Stronghold-Protocol.git
+git clone https://github.com/haoyexueyin/Stronghold-Protocol-Easy-Deploy.git
 cd Stronghold-Protocol
 npm install        # 安装依赖（postinstall 会把 pixi / preact / three 复制到 public/vendor）
 npm run setup      # 检查环境，并从公开镜像下载约 550 MB 美术 / 音频（可中断，再次运行会续传）

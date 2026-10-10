@@ -32,7 +32,7 @@ export function createSessionStack(opts, { data, log }) {
 
 /**
  * Serve the WebSocket endpoint /ws on `server` (its 'upgrade' event).
- * @param {import('node:http').Server} server
+ * @param {import('node:http').Server | import('node:https').Server} server
  * @param {{ network: Network, log: object }} deps
  * @returns {WebSocketServer}
  */

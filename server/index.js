@@ -23,6 +23,8 @@
 // The server only auto-listens when this file is the process entry point.
 
 import http from 'node:http';
+import https from 'node:https';
+import { loadTlsOptions } from './http/tls.js';
 import { getData, loadData } from './data.js';
 import { ROOT, listenAddress, bindCandidates, serveDirs, makeLogger, parseTrustProxy } from './http/config.js';
 import { WS_MAX_PAYLOAD, createSessionStack, attachWebSocket } from './http/websocket.js';
@@ -41,9 +43,10 @@ export {
 };
 
 /**
- * Build and start the HTTP + WebSocket server.
+ * Build and start the HTTP(S) + WebSocket server.
  * @param {{
  *   port?: number, host?: string, quiet?: boolean, log?: object,
+ *   tls?: import('node:https').ServerOptions | false,
  *   publicDir?: string, dataDir?: string, sharedDir?: string, packsDir?: string,
  *   MatchClass?: Function, seedFn?: () => number,
  *   lobbyGraceMs?: number, reconnectWindowMs?: number, heartbeatMs?: number, helloTimeoutMs?: number,
@@ -51,13 +54,17 @@ export {
  *   maxConnectionsPerAddr?: number, maxRoomsPerAddr?: number, maxMatchesPerAddr?: number, resyncMinGapMs?: number,
  *   heavyPerSec?: number, heavyBurst?: number, trustProxy?: 'auto' | boolean, soloReconnectWindowMs?: number,
  * }} [opts]
- * @returns {Promise<{ port: number, host: string, url: string, server: http.Server, wss: import('ws').WebSocketServer,
+ * @returns {Promise<{ port: number, host: string, url: string, server: http.Server | https.Server, wss: import('ws').WebSocketServer,
  *                     lobby: import('./lobby.js').Lobby, network: import('./net.js').Network,
  *                     registry: import('./net.js').SessionRegistry, packs: ReturnType<typeof createPackRegistry>,
  *                     close: () => Promise<void> }>}
  */
 export async function startServer(opts = {}) {
   const { port, host } = listenAddress(opts);
+  const tls = loadTlsOptions(opts.tls);
+  const protocol = tls ? 'https' : 'http';
+  // Validate TLS before creating the session stack's timers; bad certificates must not leave a process running.
+  const server = tls ? https.createServer(tls) : http.createServer();
   const log = opts.log || makeLogger(!!opts.quiet);
   const { publicDir, dataDir, sharedDir, packsDir } = serveDirs(opts);
 
@@ -73,7 +80,7 @@ export async function startServer(opts = {}) {
   resetBuildTag();
   buildTag();
 
-  const server = http.createServer(createRequestHandler({ serveStatic, health: { startedAt, network, registry, lobby }, log }));
+  server.on('request', createRequestHandler({ serveStatic, health: { startedAt, network, registry, lobby }, log }));
   server.on('clientError', answerClientError);
   const wss = attachWebSocket(server, { network, log });
 
@@ -114,7 +121,7 @@ export async function startServer(opts = {}) {
 
   const addr = server.address();
   const actualPort = typeof addr === 'object' && addr ? addr.port : port;
-  const url = `http://${displayHost(boundHost)}:${actualPort}`;
+  const url = `${protocol}://${displayHost(boundHost)}:${actualPort}`;
 
   let closing = null;
   async function close() {

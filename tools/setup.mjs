@@ -507,7 +507,7 @@ async function main() {
   }
   if (!opts.quiet) {
     log(`\n${c.ok('可以开始了：')} npm start   ${c.dim('（Windows 可直接双击 scripts\\start-windows.bat）')}`);
-    log(c.dim('浏览器打开 http://localhost:3000 ；同一局域网的朋友用终端里打印的 LAN 地址。'));
+    log(c.dim('浏览器打开启动窗口中显示的本机地址（HTTP / HTTPS）；同一局域网的朋友用终端里打印的 LAN 地址。'));
   }
   return 0;
 }

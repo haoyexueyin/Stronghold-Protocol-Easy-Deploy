@@ -1,5 +1,17 @@
 # 更新记录
 
+## 方便部署版 v0.2.3-easy.1 — 2026-10-10
+
+基于 [原作者 sganggs 的 v0.2.3](https://github.com/sganggs/Stronghold-Protocol/releases/tag/v0.2.3)，完整同步该版本玩法、数据、界面、修复和原更新记录，新增部署功能由 haoyexueyin 维护。
+
+- 保留原生 HTTPS / WSS 与 Windows 自签名证书生成、复用和续签。
+- 发布樱花一键联机：隐藏输入访问密钥，自动选择可用免费节点，创建或复用兼容 TCP 隧道，官方 frpc 连接成功后输出公网 HTTPS 地址。
+- 通过本次 frpc 成功日志与 API 在线状态共同判断连接，避免把其他电脑的隧道在线状态误当作本机映射成功。
+- 新增解压根目录的「启动樱花联机.bat」「启动HTTPS游戏.bat」，提供完整包、精简包及原版 v0.2.3 部署补丁。
+- 保留原作者介绍、贡献者署名、LICENSE、NOTICE.md 与 THIRD-PARTY-NOTICES.md；游戏素材仍只用于非商业用途。
+
+详见 [部署修改记录](docs/HTTPS-CHANGES.md)。
+
 ## 0.2.3 — 2026-10-10
 
 ### 新内容

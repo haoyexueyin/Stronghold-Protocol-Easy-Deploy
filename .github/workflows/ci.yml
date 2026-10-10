@@ -1,8 +1,8 @@
 name: CI
 
 on:
-  push:
-  pull_request:
+  # This deployment repository uses focused local release checks. The upstream full suite
+  # includes package checksum tests; keep it opt-in rather than run it on every publication.
   workflow_dispatch:
 
 concurrency:

@@ -43,3 +43,7 @@ desktop.ini
 .idea/
 .vscode/
 .claude/
+
+# --- local HTTPS certificates and temporary work -------------------------------------------------
+certs/
+temp/

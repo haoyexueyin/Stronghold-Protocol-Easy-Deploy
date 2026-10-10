@@ -17,6 +17,37 @@
 
 ## 1. Windows 小主机：一步步
 
+### 一键樱花联机（Windows）
+
+双击解压目录的 `启动樱花联机.bat`（等价于 `scripts\start-sakura-windows.bat`），在本机窗口输入樱花「访问密钥」（不是账户密码）。脚本准备 HTTPS 证书、启动游戏，从官方软件下载接口获取 Windows frpc，随后复用设置兼容的免费节点 TCP 隧道，或自动选择允许创建、未离线且不强制访问认证的免费节点，创建指向 `127.0.0.1:3000` 的 TCP 隧道。使用 `--port 3001` 时本地映射端口也同步调整。
+
+本次 frpc 输出隧道启动成功且 API 确认在线后，窗口输出 `https://节点域名:远程端口`；若 DNS 能解析到公网 IPv4，也会输出 `https://公网IP:远程端口`。请把完整的 HTTPS 地址发给朋友。自签名证书的浏览器提示仍然存在；账户流量、隧道额度、实名认证或节点限制无法由脚本消除，错误会显示在窗口中。适用配置来源：[Web 应用穿透指南](https://doc.natfrp.com/app/http.html)、[官方 API 定义](https://github.com/natfrp/api)、[frpc 环境变量](https://doc.natfrp.com/frpc/manual)。
+
+访问密钥使用隐藏输入，只交给固定的樱花 HTTPS API 和 frpc 进程环境，不写进命令行、BAT、配置文件或日志，也不传给游戏服务器。官方客户端缓存位于 `.cache/sakurafrp/`，下载临时文件位于 `temp/sakurafrp/`，均在网页静态目录之外；按本项目要求不进行哈希校验。
+
+重复启动会复用离线且设置兼容的隧道。脚本不会修改或删除其他隧道，也不会选择付费节点。`Ctrl+C` 会停止本次启动的 frpc，并通过官方 `--watch` 让 frpc 在父进程退出后停止；隧道保留在樱花账户中，方便下次继续使用。若本脚本的同端口隧道已被其他客户端维持在线，会提示先停止旧客户端，避免误把其他电脑的连接当作本机映射成功。既有游戏服务器被复用时，停止映射不会停止那个游戏服务器；映射连接失败时，本地游戏仍可使用。
+
+### 本地 HTTPS / 樱花映射
+
+1. 首次切换协议或续签 / 更换证书时，先在正在运行的服务器窗口按 `Ctrl+C` 停止服务（HTTP、HTTPS 均适用）。
+2. 双击 `scripts\start-https-windows.bat`。首次通过 Windows 生成一年有效的自签名证书 `certs/local.pfx`，无需管理员权限、OpenSSL 或额外 npm 依赖；再次运行会复用证书，有效期不足七天时重新生成。浏览器打开 `https://localhost:3000`，游戏联机自动使用 `wss://`。
+3. 樱花配置 **TCP 隧道**：本地 IP `127.0.0.1`、本地端口 `3000`（使用 `--port` 改端口时对应修改），关闭「自动 HTTPS」。朋友使用 `https://<樱花远程地址>:<远程端口>`，端口填写樱花分配的远程端口。操作依据：[樱花官方 HTTPS 说明](https://doc.natfrp.com/frpc/auto-https.html)。HTTPS 类型隧道需要绑定域名，按樱花对应教程配置；上述步骤针对 TCP 隧道。
+
+自签名证书提供加密，但浏览器会提示证书不受信任，公网地址与本地证书名称也可能不一致。确认是自己的服务器后可继续访问；若浏览器策略禁止继续，或希望朋友访问没有提示，请配置与公网域名匹配的受信任证书。证书包含私钥，`certs/` 位于静态网站目录之外，不要发给朋友或提交到仓库。
+
+生成本地证书后，原来的 `start-windows.bat`、PowerShell 启动脚本、`npm start` 都会自动使用 HTTPS。仅运行 `npm start` 不会自动续签；到期前先停止服务器，再使用 HTTPS 启动脚本即可更新。证书只在服务器启动时读取：如果续签时旧 HTTPS 服务还在运行，脚本会提示旧服务仍使用旧证书，需要停止旧窗口并重新启动才能生效。要使用自有 PEM 证书（路径相对项目根目录，也可写绝对路径）：
+
+```powershell
+$env:SP_HTTPS = '1'
+$env:SP_TLS_CERT = 'certs/fullchain.pem'
+$env:SP_TLS_KEY = 'certs/privkey.pem'
+npm start
+```
+
+也支持 `SP_TLS_PFX` 指定 PFX 文件、`SP_TLS_PASSPHRASE` 指定密码。指定证书错误时启动失败，不会回退到明文 HTTP。程序化调用 `startServer({ tls: { cert, key } })` 可传入 Node HTTPS 选项，`startServer({ tls: false })` 强制使用 HTTP。
+
+若改用樱花的「自动 HTTPS」或前置反向代理，由其处理证书，先停止服务器，在同一个 PowerShell 窗口设置 `$env:SP_HTTPS = '0'` 后运行 `npm start`，让本地服务使用 HTTP。原有 Nginx / Caddy / Windows 服务探活示例使用 HTTP 上游，采用这些示例时也应设 `SP_HTTPS=0`；Windows 服务可在 `scripts/service.env.cmd` 中增加 `set "SP_HTTPS=0"`。
+
 ### 1.1 安装与首次启动
 
 1. 安装 Node.js 22 LTS 和 Git（在 PowerShell 或「终端」里；用下面的整合包时不需要 Git）：
@@ -26,11 +57,11 @@
    ```
    装完**关闭并重新打开**终端，`node -v` 应显示 v22 或更高（winget 的 LTS 目前是 v24.x，同样可用）。没有 winget 时从 <https://nodejs.org/zh-cn/download> 和 <https://git-scm.com/download/win> 下载安装。
 2. 下载，三选一。建议放在一个固定、短、**不在 OneDrive 同步范围内**的目录，例如 `C:\Stronghold-Protocol`：
-   - **完整包（推荐）**：在仓库的 [Releases](https://github.com/sganggs/Stronghold-Protocol/releases) 页面下载最新版本的 `Stronghold-Protocol-v<版本>.zip`（约 505 MB，解压后约 710 MB；已含运行依赖、前端库和全部素材，包括中文、日文两套干员语音和官方 3D 棋盘等本地客户端素材），解压后把里面的 `Stronghold-Protocol` 文件夹放到上述位置。不需要 Git，首次启动也不用再下载素材。素材版权归上海鹰角网络 / Yostar，仅限非商业使用，见 [NOTICE.md](../NOTICE.md)。
+   - **完整包（推荐）**：在仓库的 [Releases](https://github.com/haoyexueyin/Stronghold-Protocol-Easy-Deploy/releases) 页面下载最新版本的 `Stronghold-Protocol-v<版本>.zip`（约 505 MB，解压后约 710 MB；已含运行依赖、前端库和全部素材，包括中文、日文两套干员语音和官方 3D 棋盘等本地客户端素材），解压后把里面的 `Stronghold-Protocol` 文件夹放到上述位置。不需要 Git，首次启动也不用再下载素材。素材版权归上海鹰角网络 / Yostar，仅限非商业使用，见 [NOTICE.md](../NOTICE.md)。
    - **精简包**：同一页面的 `Stronghold-Protocol-v<版本>-lite.zip`（约 22 MB）。代码、运行依赖和前端库与完整包相同，但不带素材：美术、Spine 模型、音频（含两套干员语音）、字体、表情和「玩法说明」教程图在首次启动时由 setup 从公开镜像下载（约 550 MB，显示进度，可中断续传；镜像设置见下面的「国内镜像下载」）。官方 3D 棋盘等本地客户端素材需要用本机客户端提取，或从同一版本的完整包复制（第 6 节）。适合下载大文件不方便、或想先下一个小包的情况；放置方式同完整包。
    - **源码**：
      ```powershell
-     git clone https://github.com/sganggs/Stronghold-Protocol.git C:\Stronghold-Protocol
+     git clone https://github.com/haoyexueyin/Stronghold-Protocol-Easy-Deploy.git C:\Stronghold-Protocol
      ```
 3. 双击 `C:\Stronghold-Protocol\scripts\start-windows.bat`。首次会：安装依赖（`npm ci`；整合包已含，跳过）→ 复制前端库（整合包已含，跳过）→ 下载约 550 MB 素材（完整包已含，跳过；精简包和源码在这一步下载，显示进度，中断后再次启动会续传）→ 若检测到本机的明日方舟客户端，询问是否提取官方贴图（可跳过）→ 启动服务器并打开浏览器。
 4. 窗口里会打印朋友可用的地址，例如 `http://192.168.1.23:3000`。用另一台设备打开它确认能进入。关闭窗口即停止服务器。
@@ -221,7 +252,7 @@ server {
 
 **HTTP/2**：客户端由数百个小脚本模块组成（0.2.0 起进入对局时约 340 个），隔着公网时建议让代理以 HTTP/2 提供页面：所有模块走同一条连接，远距离玩家首次进入对局明显更快。Caddy 默认就是 HTTP/2；Nginx 见上面的 `http2`。服务器本身只说 HTTP/1.1，局域网或本机游玩不受影响。
 
-https / wss 说明：页面通过 https 打开时客户端自动连接 `wss://同一域名/ws`；http 时用 `ws://`。服务器本身只提供 http，证书由代理 / 隧道负责。代理与服务器在同一台机器或内网时，`TRUST_PROXY=auto` 会信任它的 `X-Forwarded-For` / `X-Real-IP`；代理在公网另一台机器上时设 `TRUST_PROXY=1`（同时确保游戏端口只对代理开放）。
+https / wss 说明：页面通过 https 打开时客户端自动连接 `wss://同一域名/ws`；http 时用 `ws://`。服务器支持原生 HTTPS（见「本地 HTTPS / 樱花映射」）；采用本节 HTTP 上游示例时设 `SP_HTTPS=0`，由代理 / 隧道处理证书。代理与服务器在同一台机器或内网时，`TRUST_PROXY=auto` 会信任它的 `X-Forwarded-For` / `X-Real-IP`；代理在公网另一台机器上时设 `TRUST_PROXY=1`（同时确保游戏端口只对代理开放）。
 
 ## 3. Docker
 
@@ -306,7 +337,7 @@ services:
 
 表情（6 套 × 6 个）和「玩法说明」的 19 页教程图公开镜像也有：`node tools/setup.mjs` 会和其他素材一起下载（约 21 MB），不需要客户端；有本地素材时优先显示本地的。
 
-**没有客户端的服务器**想要上表中的官方素材：从**同一版本**的完整包（[Releases](https://github.com/sganggs/Stronghold-Protocol/releases)）里，把 `public/assets/local/` 文件夹和 `data/local-assets.json` 复制到服务器项目目录下的相同位置。服务器每次请求都会重新读取这两处，不必重启，玩家刷新页面即可。一定要用与服务器代码相同版本的完整包：各版本提取的内容和清单可能不同（例如灼热 / 炽焰源石虫的模型是 0.1.0 之后才加入的，召唤物模型是 0.2.0 加入的），混用其他版本的文件会缺图或用错图。复制后 `node tools/doctor.mjs` 会显示本地素材的条目数和「3D 棋盘可用」。
+**没有客户端的服务器**想要上表中的官方素材：从**同一版本**的完整包（[Releases](https://github.com/haoyexueyin/Stronghold-Protocol-Easy-Deploy/releases)）里，把 `public/assets/local/` 文件夹和 `data/local-assets.json` 复制到服务器项目目录下的相同位置。服务器每次请求都会重新读取这两处，不必重启，玩家刷新页面即可。一定要用与服务器代码相同版本的完整包：各版本提取的内容和清单可能不同（例如灼热 / 炽焰源石虫的模型是 0.1.0 之后才加入的，召唤物模型是 0.2.0 加入的），混用其他版本的文件会缺图或用错图。复制后 `node tools/doctor.mjs` 会显示本地素材的条目数和「3D 棋盘可用」。
 
 **0.2.0 之前提取过的**：召唤物模型是 0.2.0 新增的提取项，旧的提取结果里没有（`node tools/setup.mjs` 会提示「缺少新版的自选召唤物模型」）。有客户端的电脑运行 `node tools/setup.mjs --local` 重新提取即可，只想补这一项也可以在提取用的 Python 环境里运行 `tools/local-extract/extract.py --only spine/token`（新文件写入 `public/assets/local/spine/token/`，清单里其他条目保持不变）。
 

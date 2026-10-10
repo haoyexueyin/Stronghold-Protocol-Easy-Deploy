@@ -23,21 +23,22 @@ import { ROOT } from './config.js';
  * Link-local (`fe80::`) is left out: a URL cannot carry the zone id. Several privacy addresses in one /64 collapse
  * to one URL (`limitKeyOf`).
  * @param {number} port
+ * @param {'http' | 'https'} [protocol]
  */
-export function lanUrls(port) {
+export function lanUrls(port, protocol = 'http') {
   const v4 = [];
   const v6 = [];
   const v6Seen = new Set();
   for (const addrs of Object.values(os.networkInterfaces())) {
     for (const a of addrs || []) {
       if (a.internal) continue;
-      if (a.family === 'IPv4' || a.family === 4) { v4.push(`http://${a.address}:${port}`); continue; }
+      if (a.family === 'IPv4' || a.family === 4) { v4.push(`${protocol}://${a.address}:${port}`); continue; }
       if (a.family !== 'IPv6' && a.family !== 6) continue;
       if (/^fe80:/i.test(a.address)) continue;
       const prefix = limitKeyOf(a.address);
       if (v6Seen.has(prefix)) continue;
       v6Seen.add(prefix);
-      v6.push(`http://[${a.address}]:${port}`);
+      v6.push(`${protocol}://[${a.address}]:${port}`);
     }
   }
   return [...v4, ...v6];
@@ -65,13 +66,18 @@ export function isProcessEntry(metaUrl) {
 
 /** Print the boot banner of a started server. @param {{ url: string, host: string, port: number }} srv */
 export function printBanner(srv) {
+  const protocol = new URL(srv.url).protocol === 'https:' ? 'https' : 'http';
   console.log(`\n  卫戍协议：盟约 · Stronghold Protocol: Alliance v${APP_VERSION}`);
   if (DEV_BUILD) console.log('  ! 开发版（dev 分支）：不稳定，请勿用于公开服务器 · development build — unstable, not for public servers');
   console.log(`  Local:   ${srv.url}`);
   if (srv.host === '0.0.0.0' || srv.host === '::') {
-    for (const u of lanUrls(srv.port)) console.log(`  LAN:     ${u}`);
+    for (const u of lanUrls(srv.port, protocol)) console.log(`  LAN:     ${u}`);
   }
-  console.log('  Internet: cloudflared tunnel --url ' + `http://localhost:${srv.port}` + '\n');
+  if (protocol === 'https') {
+    console.log(`  SakuraFrp: TCP -> 127.0.0.1:${srv.port}, auto HTTPS OFF; visit https://<remote-host>:<remote-port>\n`);
+  } else {
+    console.log('  Internet: cloudflared tunnel --url ' + `http://localhost:${srv.port}` + '\n');
+  }
 }
 
 /**

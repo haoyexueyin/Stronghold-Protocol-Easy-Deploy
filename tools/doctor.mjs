@@ -12,6 +12,8 @@
 // Exit code 1 when something essential is missing (the same rule as tools/setup.mjs --check).
 
 import http from 'node:http';
+import https from 'node:https';
+import { httpsEnabled } from '../server/http/tls.js';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -48,8 +50,8 @@ function ipv6Head(ip) {
 }
 
 /** An http URL for one address. An IPv6 literal needs brackets (`http://[240e:…]:3000`). Also used by scripts/launch.mjs. */
-export function hostUrl(address, port) {
-  return `http://${String(address).includes(':') ? `[${address}]` : address}:${port}`;
+export function hostUrl(address, port, protocol = 'http') {
+  return `${protocol}://${String(address).includes(':') ? `[${address}]` : address}:${port}`;
 }
 
 /** IPv6 counterpart of the IPv4 chain (same order, same kinds). @param {string} name @param {string} ip */
@@ -116,7 +118,10 @@ export const KIND_LABEL = { lan: '局域网', vpn: 'VPN/Tailscale/ZeroTier', pub
 
 function getJson(url, timeoutMs = 1500) {
   return new Promise((resolve) => {
-    const req = http.get(url, { timeout: timeoutMs }, (res) => {
+    const secure = url.startsWith('https:');
+    // This private helper is only called with the literal loopback address below. Self-signed local certificates
+    // must work for startup detection; browser and external requests retain their normal certificate validation.
+    const req = (secure ? https : http).get(url, { timeout: timeoutMs, ...(secure ? { rejectUnauthorized: false } : {}) }, (res) => {
       let body = '';
       res.setEncoding('utf8');
       res.on('data', (d) => { body += d; if (body.length > 65536) req.destroy(); });
@@ -136,9 +141,12 @@ function canListen(port, host) {
 }
 
 /** 'ours' (our server answers /healthz), 'free', 'busy' (another program) or 'denied'. */
-export async function probePort(port, host = '::') {
-  const r = await getJson(`http://127.0.0.1:${port}/healthz`);
-  if (r.json && r.json.ok === true && 'uptimeSec' in r.json) return { state: 'ours', health: r.json };
+export async function probePort(port, host = '::', protocol = httpsEnabled() ? 'https' : 'http') {
+  let r;
+  for (const scheme of [protocol, protocol === 'https' ? 'http' : 'https']) {
+    r = await getJson(`${scheme}://127.0.0.1:${port}/healthz`);
+    if (r.json && r.json.ok === true && 'uptimeSec' in r.json) return { state: 'ours', health: r.json, protocol: scheme };
+  }
   let l = await canListen(port, host);
   // The same three errors startServer treats as "this host has no IPv6": don't report the port busy for that.
   if (!l.ok && host === '::' && ['EAFNOSUPPORT', 'EADDRNOTAVAIL', 'EINVAL'].includes(l.code)) l = await canListen(port, '0.0.0.0');
@@ -266,7 +274,8 @@ async function main() {
   } else if (port.state === 'free') row('ok', `端口 ${opts.port}`, '空闲（服务器未运行；npm start 启动）');
   else if (port.state === 'denied') row('err', `端口 ${opts.port}`, '没有权限监听（Linux 上 < 1024 的端口需要 root）→ 换一个 PORT');
   else row('err', `端口 ${opts.port}`, `被其他程序占用（${port.code}）→ 关闭它或换端口：${IS_WIN ? '$env:PORT=3001; npm start' : 'PORT=3001 npm start'}`);
-  const env = ['PORT', 'HOST', 'SP_COMBAT', 'SP_VERIFY', 'TRUST_PROXY', 'DEBUG'].filter((k) => process.env[k] != null && process.env[k] !== '');
+  const protocol = port.protocol || (httpsEnabled() ? 'https' : 'http');
+  const env = ['PORT', 'HOST', 'SP_HTTPS', 'SP_TLS_PFX', 'SP_TLS_CERT', 'SP_TLS_KEY', 'SP_COMBAT', 'SP_VERIFY', 'TRUST_PROXY', 'DEBUG'].filter((k) => process.env[k] != null && process.env[k] !== '');
   row('skip', '环境变量', env.length ? env.map((k) => `${k}=${process.env[k]}`).join(' ') : '全部默认（PORT=3000 HOST=:: SP_COMBAT=client SP_VERIFY=off）');
 
   section('朋友如何访问');
@@ -275,7 +284,7 @@ async function main() {
   for (const a of addrs) {
     const usable = a.kind === 'lan' || a.kind === 'vpn' || a.kind === 'public';
     // An IPv6 literal needs the brackets of hostUrl(): `http://240e:…:3000` is not a URL anyone can open.
-    row(usable ? 'ok' : 'skip', hostUrl(a.address, opts.port), `${KIND_LABEL[a.kind]} · ${a.name}`);
+    row(usable ? 'ok' : 'skip', hostUrl(a.address, opts.port, protocol), `${KIND_LABEL[a.kind]} · ${a.name}`);
   }
   if (opts.host !== '0.0.0.0' && opts.host !== '::') row('warn', 'HOST', `HOST=${opts.host}：只监听这个地址，其他电脑可能连不上（默认 :: 双栈）`);
 
@@ -288,7 +297,7 @@ async function main() {
   const cf = tool('cloudflared', ['--version']);
   row(ts ? 'ok' : 'skip', 'Tailscale', ts || '未安装（推荐：https://tailscale.com/download ）');
   row(zt ? 'ok' : 'skip', 'ZeroTier', zt || '未安装');
-  row(cf ? 'ok' : 'skip', 'cloudflared', cf || '未安装（临时公网链接：cloudflared tunnel --url http://localhost:' + opts.port + '）');
+  row(cf ? 'ok' : 'skip', 'cloudflared', cf || `未安装（临时公网链接：cloudflared tunnel --url ${protocol}://localhost:${opts.port}${protocol === 'https' ? ' --no-tls-verify（本地自签名证书）' : ''}）`);
 
   // print
   const width = Math.max(...rows.filter((r) => r[0] && r[0] !== 'raw' && r[0] !== 'mark').map((r) => displayWidth(r[1]))) + 2;
